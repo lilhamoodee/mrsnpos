@@ -1,5 +1,5 @@
 // Service Worker Marisini POS (naikkan versi cache setiap rilis)
-const CACHE_NAME = "marisini-v4";
+const CACHE_NAME = "marisini-v5";
 const ASSETS = [
   "./",
   "index.html",

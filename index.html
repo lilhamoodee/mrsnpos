@@ -2,7 +2,7 @@
 <html lang="id"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Marisini POS</title>
-<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#0B2239"><link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png">
+<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#0B1F36"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png">
 <style>
 /* Font lokal (woff2) agar tampilan tetap identik saat offline di pantai */
 @font-face{font-family:"Playfair Display";font-style:normal;font-weight:600;font-display:swap;src:url("fonts/playfair-display-latin.woff2") format("woff2")}
@@ -135,8 +135,22 @@ header>div:nth-child(2){display:grid;gap:3px;min-width:0}
 #vform .lbl{margin:0;color:#9B1C1C}
 #vform .chip{min-height:48px;font-size:14px;padding:6px 10px}
 #struk .vban{border:1px dashed #000;padding:3px 4px;margin:4px 0;font-weight:700;text-align:center;letter-spacing:.06em}
+/* Gaya Tutup Kasir harian */
+.bdg.ok{background:#E8F6EE;color:#157347;border:1px solid #B5DFC7}
+#csheet{position:fixed;inset:0;display:flex;background:rgba(8,20,36,.6);align-items:flex-end;justify-content:center;z-index:8;animation:fade .25s}
+.cbox{display:grid;gap:10px}
+.csum{background:var(--bg);border:1px solid var(--ln);border-radius:12px;padding:12px;display:grid;gap:6px}
+.csum .r2 b{font-family:var(--num);font-variant-numeric:tabular-nums}
+.csum .hr{height:1px;background:var(--ln);margin:2px 0}
+.cdiff{padding:10px 12px;border-radius:12px;font-family:var(--num);font-weight:800;font-variant-numeric:tabular-nums;border:1.5px solid var(--ln);background:var(--bg)}
+.cdiff.ok{background:#E8F6EE;color:#157347;border-color:#B5DFC7}
+.cdiff.neg{background:#FDECEC;color:#9B1C1C;border-color:#F5B5B5}
+.cdiff.pos{background:#FEF8E6;color:#7A5A12;border-color:var(--gold)}
+.cwarn{background:#FEF8E6;border:1px solid var(--gold);color:#7A5A12;border-radius:10px;padding:8px 10px;font-size:13px;font-weight:600}
+.citem{border:1px solid var(--ln);border-radius:12px;padding:10px 12px;background:var(--c);display:grid;gap:4px}
+.btn.sm{min-height:44px;font-size:15px}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
-@media print{.app,nav,#bar,#toast,.acts,#det,#lock,#vform{display:none!important}body{background:#fff}#sheet{position:static!important;background:none!important}.box{padding:0!important;max-height:none!important;background:none!important}#struk{border:0;max-width:none;width:58mm;margin:0;padding:0}@page{size:58mm auto;margin:2mm}}
+@media print{.app,nav,#bar,#toast,.acts,#det,#lock,#vform,#csheet{display:none!important}body{background:#fff}#sheet{position:static!important;background:none!important}.box{padding:0!important;max-height:none!important;background:none!important}#struk{border:0;max-width:none;width:58mm;margin:0;padding:2mm 1.5mm}@page{size:58mm auto;margin:0}}
 </style></head>
 <body>
 <div class="app">
@@ -146,6 +160,7 @@ header>div:nth-child(2){display:grid;gap:3px;min-width:0}
 <div id="bar"><button id="go" class="btn" onclick="save()"></button></div>
 <nav><button id="n0" class="on" onclick="tab(0)">Kasir</button><button id="n1" onclick="tab(1)">Riwayat</button></nav>
 <div id="sheet" hidden><div class="box"><div id="det" class="sub"></div><div id="struk"></div><div id="vform" hidden><div class="lbl">Alasan batal (wajib)</div><div class="row" id="vchips"></div><input id="vreason" class="in" placeholder="Tulis alasan batal..." autocomplete="off"><div class="sub" id="verr" style="color:#9B1C1C"></div><button id="vok" class="btn danger" onclick="confirmVoid()">KONFIRMASI BATAL</button><button class="btn ghost" onclick="closeVoidForm()">Kembali</button></div><div class="acts" id="sacts"><button class="btn" id="pbtn" onclick="window.print()">CETAK STRUK</button><a class="btn alt" id="wa" target="_blank" rel="noopener">Kirim ke WhatsApp</a><button class="btn danger-ghost" id="vbtn" onclick="openVoidForm()" hidden>Batalkan Transaksi</button><button class="btn ghost" onclick="closeSheet()">Tutup</button></div></div></div>
+<div id="csheet" hidden><div class="box"><div id="cbody" class="cbox"></div></div></div>
 <div id="lock" hidden><div class="lbox"><div class="tile"><img id="lg2" alt=""></div><div class="wm">MARI<b>SINI</b><span class="ps">POS</span></div><div id="pinrow" style="width:100%"><input id="pin" class="in" type="password" inputmode="numeric" autocomplete="off" placeholder="PIN"></div><input id="nm" class="in" placeholder="Nama kamu" autocomplete="off"><div class="sub" id="lerr"></div><button class="btn" onclick="login()">MASUK</button></div></div>
 <div id="toast"></div>
 <script>
@@ -198,6 +213,29 @@ function calcTx(pos, idx, qty, customTotal, ag) {
   const k = kom(pos, pk, ag, tot, qty);
   return { pk, list, tot, k, disc: Math.max(0, list - tot), net: tot - k };
 }
+
+// Hitung rekap Tutup Kasir (angka bersih per cara bayar, transaksi Batal tidak dihitung)
+function calcClose(txRows, pos) {
+  let cash = 0, edc = 0, qris = 0, cashCnt = 0, edcCnt = 0, qrisCnt = 0;
+  for (let i = 0; i < txRows.length; i++) {
+    const r = txRows[i];
+    if (r.pos !== pos || r.status === "Batal") continue;
+    const net = Number(r.net) || 0;
+    if (r.pay === "Tunai") { cash += net; cashCnt++; }
+    else if (r.pay === "EDC") { edc += net; edcCnt++; }
+    else if (r.pay === "QRIS") { qris += net; qrisCnt++; }
+  }
+  return {
+    sys_cash: cash,
+    sys_edc: edc,
+    sys_qris: qris,
+    sys_total: cash + edc + qris,
+    cashCnt,
+    edcCnt,
+    qrisCnt,
+    tx_count: cashCnt + edcCnt + qrisCnt
+  };
+}
 // === AKHIR LOGIKA HARGA & KOMISI ===
 
 // Utilitas umum DOM, format angka, penyimpanan lokal, dan tanggal lokal
@@ -222,11 +260,15 @@ let S = Object.assign({ pos: "Senggigi", staff: "", i: 0, qty: 1, pay: "Tunai", 
 let PINV = ld("mk2_p", "");
 let Q = ld("mk2_q", []);   // Antrean transaksi baru yang belum terkirim
 let VQ = ld("mk2_vq", []); // Antrean pembatalan yang belum terkirim
+let CQ = ld("mk2_cq", []); // Antrean tutup kasir yang belum terkirim
 let H = ld("mk2_h", {});
+let CH = ld("mk2_ch", {}); // Riwayat tutup kasir dari Sheet per tanggal
 let F = { ds: day(), pos: "", pay: "", q: "" };
+let CS = { pos: S.pos || "Senggigi", phys: "", note: "" }; // State form Tutup Kasir
 let busy = false;
-let saving = false; // Pengunci tombol simpan untuk mencegah ketukan ganda
-let curTx = null;   // Transaksi yang sedang dibuka di sheet detail/struk
+let saving = false;  // Pengunci tombol simpan untuk mencegah ketukan ganda
+let closing = false; // Pengunci tombol simpan tutup kasir
+let curTx = null;    // Transaksi yang sedang dibuka di sheet detail/struk
 
 if (!P[S.pos] || !P[S.pos][S.i]) { S.pos = "Senggigi"; S.i = 0; S.qty = 1; }
 const sav = () => sv("mk2_s", S);
@@ -481,14 +523,193 @@ const flt = () => rows(F.ds).filter(x =>
 
 function fl(k, v) { F[k] = v; hist(); }
 
+// Gabungan catatan Tutup Kasir dari Sheet + antrean lokal untuk tanggal (dan opsional cabang)
+const closeRows = (ds, pos) => {
+  const a = (CH[ds] || []).slice();
+  const ids = new Set(a.map(x => String(x.id)));
+  CQ.forEach(x => {
+    if (x.ds === ds && !ids.has(String(x.id))) {
+      ids.add(String(x.id));
+      a.push(Object.assign({ wait: 1 }, x));
+    }
+  });
+  return a
+    .filter(x => !pos || x.pos === pos)
+    .sort((x, y) => idTime(y.id) - idTime(x.id) || String(y.id).localeCompare(String(x.id)));
+};
+
+// Format teks & kelas warna selisih uang tunai
+const fmtDiff = diff => {
+  if (diff === 0) return { cls: "ok", text: "Selisih: Pas (Rp 0)" };
+  if (diff > 0) return { cls: "pos", text: "Selisih: Lebih +" + rp(diff) };
+  return { cls: "neg", text: "Selisih: Kurang -" + rp(Math.abs(diff)) };
+};
+
+// Buka layar Tutup Kasir harian untuk tanggal terpilih di Riwayat
+function openClose() {
+  if (!S.staff) { askName(); return; }
+  CS.pos = F.pos || S.pos || "Senggigi";
+  CS.phys = "";
+  CS.note = "";
+  renderClose();
+  $("#csheet").hidden = false;
+}
+
+function closeModal() {
+  $("#csheet").hidden = true;
+}
+
+function setClosePos(pos) {
+  CS.pos = pos;
+  CS.phys = "";
+  renderClose();
+}
+
+function updateCloseDiff() {
+  const sum = calcClose(rows(F.ds), CS.pos);
+  const el = $("#cdiff");
+  if (!el) return;
+  if (CS.phys === "") {
+    el.className = "cdiff";
+    el.textContent = "Isi uang tunai fisik untuk hitung selisih";
+    return;
+  }
+  const d = fmtDiff(Number(CS.phys) - sum.sys_cash);
+  el.className = "cdiff " + d.cls;
+  el.textContent = d.text;
+}
+
+function onClosePhys(val) {
+  const clean = String(val || "").replace(/\D/g, "");
+  CS.phys = clean === "" ? "" : String(Number(clean));
+  updateCloseDiff();
+}
+
+// Render isi bottom-sheet Tutup Kasir Harian
+function renderClose() {
+  const allTx = rows(F.ds);
+  const sum = calcClose(allTx, CS.pos);
+  const pendingTx = Q.filter(x => x.ds === F.ds && x.pos === CS.pos).length + VQ.filter(x => x.ds === F.ds).length;
+  const histClose = closeRows(F.ds, CS.pos);
+
+  $("#cbody").innerHTML = `
+<div class="r2" style="align-items:center"><b style="font-family:var(--serif);font-size:20px">Tutup Kasir Harian</b><span class="sub">${esc(F.ds)}</span></div>
+<div class="row">${Object.keys(P).map(p => chip(p, CS.pos === p, `setClosePos('${p}')`)).join("")}</div>
+${pendingTx ? `<div class="cwarn">Ada ${pendingTx} data belum terkirim ke server. Pastikan tersambung agar rekap sesuai semua HP.</div>` : ""}
+<div class="csum">
+  <div class="r2"><span>Tunai (${sum.cashCnt} trx)</span><b>${rp(sum.sys_cash)}</b></div>
+  <div class="r2"><span>EDC (${sum.edcCnt} trx)</span><b>${rp(sum.sys_edc)}</b></div>
+  <div class="r2"><span>QRIS (${sum.qrisCnt} trx)</span><b>${rp(sum.sys_qris)}</b></div>
+  <div class="hr"></div>
+  <div class="r2"><b>Total bersih (${sum.tx_count} trx)</b><b>${rp(sum.sys_total)}</b></div>
+</div>
+<div class="lbl" style="margin:2px 0 0">Uang tunai fisik di tangan / laci</div>
+<div class="tot"><b>Rp</b><input id="cphys" inputmode="numeric" placeholder="0" value="${esc(CS.phys)}" oninput="onClosePhys(this.value)"></div>
+<div id="cdiff" class="cdiff"></div>
+<input id="cnote" class="in" placeholder="Catatan selisih (opsional)" value="${esc(CS.note)}" oninput="CS.note=this.value" autocomplete="off">
+<div class="sub" id="cerr" style="color:#9B1C1C"></div>
+<button id="cgo" class="btn" onclick="saveClose()">SIMPAN TUTUP KASIR</button>
+<button class="btn ghost" onclick="closeModal()">Tutup</button>
+${histClose.length ? `<div class="lbl" style="margin:6px 0 0">Riwayat tutup kasir (${esc(CS.pos)})</div>` + histClose.map(c => {
+    const d = fmtDiff(Number(c.diff) || 0);
+    return `<div class="citem">
+      <div class="r2"><b>${esc((c.srv_ts || "").slice(11, 16) || "-")} — ${esc(c.staff)}</b><span class="bdg ${c.diff === 0 ? "ok" : "v"}">${c.diff === 0 ? "PAS" : (c.diff > 0 ? "+" : "-") + rp(Math.abs(c.diff))}</span></div>
+      <div class="sub">Tunai sistem ${rp(c.sys_cash)} · Fisik ${rp(c.phys_cash)}${c.wait ? " · belum terkirim" : ""}</div>
+      <div class="sub">EDC ${rp(c.sys_edc)} · QRIS ${rp(c.sys_qris)} · Total ${rp(c.sys_total)}</div>
+      ${c.note ? `<div class="sub">Catatan: ${esc(c.note)}</div>` : ""}
+      <button class="btn ghost sm" onclick="showCloseById('${esc(c.id)}')">Cetak Rekap 58mm</button>
+    </div>`;
+  }).join("") : ""}`;
+  updateCloseDiff();
+}
+
+// Simpan tutup kasir ke antrean lokal (CQ) lalu sinkronkan ke tab Sheet "Tutup Kasir"
+function saveClose() {
+  if (closing) return;
+  if (!S.staff) { askName(); return; }
+  if (CS.phys === "") {
+    $("#cerr").textContent = "Isi jumlah uang tunai fisik dulu (isi 0 jika tidak ada tunai)";
+    return;
+  }
+
+  closing = true;
+  const btn = $("#cgo");
+  if (btn) btn.disabled = true;
+
+  const physCash = Number(CS.phys) || 0;
+  const sum = calcClose(rows(F.ds), CS.pos);
+  const rec = {
+    id: genId(),
+    ds: F.ds,
+    pos: CS.pos,
+    staff: S.staff,
+    srv_ts: nowLocal(),
+    sys_cash: sum.sys_cash,
+    sys_edc: sum.sys_edc,
+    sys_qris: sum.sys_qris,
+    sys_total: sum.sys_total,
+    phys_cash: physCash,
+    diff: physCash - sum.sys_cash,
+    tx_count: sum.tx_count,
+    note: CS.note.trim()
+  };
+
+  CQ.push(rec);
+  sv("mk2_cq", CQ);
+  CS.phys = "";
+  CS.note = "";
+
+  toast("Tutup kasir disimpan");
+  closeModal();
+  showCloseReceipt(rec);
+  if (!$("#riwayat").hidden) hist();
+  sync();
+
+  setTimeout(() => {
+    closing = false;
+    const b = $("#cgo");
+    if (b) b.disabled = false;
+  }, 1200);
+}
+
+// Template struk 58mm untuk Tutup Kasir Harian
+const rcClose = c => {
+  const diffLabel = c.diff === 0 ? "PAS (Rp 0)" : (c.diff > 0 ? "+" : "-") + rp(Math.abs(c.diff));
+  return `<img src="${LOGO}" alt=""><div class="c b">MARISINI JETSKI</div><div class="c">Cabang ${esc(c.pos)}</div><div class="vban">TUTUP KASIR HARIAN</div><hr><div>Tanggal: ${esc(c.ds)}</div><div>Waktu: ${esc(c.srv_ts)}</div><div>Staf: ${esc(c.staff)}</div><hr><div class="r2"><span>Tunai sistem</span><span>${rp(c.sys_cash)}</span></div><div class="r2"><span>EDC sistem</span><span>${rp(c.sys_edc)}</span></div><div class="r2"><span>QRIS sistem</span><span>${rp(c.sys_qris)}</span></div><div class="r2 b"><span>TOTAL BERSIH</span><span>${rp(c.sys_total)}</span></div><div class="r2"><span>Transaksi aktif</span><span>${c.tx_count}</span></div><hr><div class="r2"><span>Tunai fisik</span><span>${rp(c.phys_cash)}</span></div><div class="r2 b"><span>SELISIH</span><span>${diffLabel}</span></div>${c.note ? `<hr><div>Catatan: ${esc(c.note)}</div>` : ""}<hr><div class="c">Rekap bersih setelah komisi.</div>`;
+};
+
+function showCloseReceipt(c) {
+  if (!c) return;
+  curTx = null;
+  closeVoidForm();
+  const d = fmtDiff(Number(c.diff) || 0);
+  $("#det").textContent = `Tutup kasir ${c.pos} (${c.ds}). ${d.text}${c.wait ? " — menunggu sinyal." : "."}`;
+  $("#struk").innerHTML = rcClose(c);
+  $("#pbtn").textContent = "CETAK TUTUP KASIR";
+  const diffTxt = c.diff === 0 ? "Pas (Rp 0)" : (c.diff > 0 ? "Lebih +" : "Kurang -") + rp(Math.abs(c.diff));
+  $("#wa").href = "https://wa.me/?text=" + encodeURIComponent(
+    `Tutup Kasir Marisini Jetski ${c.pos} (${c.ds})\nStaf: ${c.staff}\nTunai sistem: ${rp(c.sys_cash)}\nEDC: ${rp(c.sys_edc)}\nQRIS: ${rp(c.sys_qris)}\nTotal bersih: ${rp(c.sys_total)} (${c.tx_count} trx)\nTunai fisik: ${rp(c.phys_cash)}\nSelisih: ${diffTxt}${c.note ? "\nCatatan: " + c.note : ""}`
+  );
+  $("#vbtn").hidden = true;
+  $("#sheet").hidden = false;
+}
+
+function showCloseById(id) {
+  const c = closeRows(F.ds).find(x => String(x.id) === String(id));
+  if (c) { closeModal(); showCloseReceipt(c); }
+}
+
 // Render tab Riwayat (rekap memakai angka bersih setelah komisi, transaksi batal tidak ikut rekap)
 function hist() {
   const all = rows(F.ds);
   const active = all.filter(x => !isVoid(x));
   const voidCnt = all.length - active.length;
   const by = p => active.filter(x => x.pos === p).reduce((a, x) => a + x.net, 0);
+  const closedList = closeRows(F.ds);
+  const closedBranches = [...new Set(closedList.map(c => c.pos))];
   $("#riwayat").innerHTML = `<div class="lbl">Tanggal</div><input class="in" type="date" value="${F.ds}" onchange="F.ds=this.value||day();hist();load()">
 <div class="rc">${Object.keys(P).map(p => `<div><span class="sub">${p}</span><b>${rp(by(p))}</b></div>`).join("")}<div class="all"><span class="sub">Total (setelah komisi), ${active.length} transaksi${voidCnt ? ` (${voidCnt} batal)` : ""}</span><b>${rp(active.reduce((a, x) => a + x.net, 0))}</b></div></div>
+<button class="btn ghost sm" style="margin-top:10px;border-color:var(--gold)" onclick="openClose()">Tutup Kasir Harian${closedBranches.length ? `<span class="bdg ok">Sudah: ${esc(closedBranches.join(", "))}</span>` : ""}</button>
 <div class="row" style="margin-top:12px">${["", "Senggigi", "Sira"].map(p => chip(p || "Semua cabang", F.pos === p, `fl('pos','${p}')`)).join("")}</div>
 <div class="row" style="margin-top:8px">${["", "Tunai", "EDC", "QRIS"].map(p => chip(p || "Semua", F.pay === p, `fl('pay','${p}')`)).join("")}</div>
 <input class="in" placeholder="Cari paket atau staf" value="${esc(F.q)}" oninput="F.q=this.value;list()" style="margin-top:8px"><div id="list"></div>`;
@@ -512,24 +733,27 @@ async function post(b) {
   return r.json();
 }
 
-// Ambil riwayat bersama dari Sheet (disimpan lokal maks 7 hari terakhir)
+// Ambil riwayat bersama dari Sheet (transaksi + tutup kasir, disimpan lokal maks 7 hari terakhir)
 async function load() {
   if (!PINV) return;
   try {
     const j = await post({ action: "list", pin: PINV, ds: F.ds });
     if (j.ok) {
-      H[F.ds] = j.rows;
+      H[F.ds] = j.rows || [];
+      CH[F.ds] = j.closings || [];
       const ks = Object.keys(H).sort();
-      while (ks.length > 7) delete H[ks.shift()];
+      while (ks.length > 7) { const old = ks.shift(); delete H[old]; delete CH[old]; }
       sv("mk2_h", H);
+      sv("mk2_ch", CH);
       if (!$("#riwayat").hidden) hist();
+      if (!$("#csheet").hidden) renderClose();
     } else if (j.err === "pin") {
       out();
     }
   } catch (e) {}
 }
 
-// Kirim antrean transaksi baru (Q) lalu antrean batal (VQ) ke Sheet
+// Kirim antrean transaksi baru (Q), lalu batal (VQ), lalu tutup kasir (CQ) ke Sheet
 async function sync(m) {
   if (!PINV || busy) { stat(); return; }
   busy = true;
@@ -582,19 +806,49 @@ async function sync(m) {
           }
         } else if (j.err === "pin") {
           out();
+          gagalJaringan = true;
           break;
         } else if (j.err === "bukan_hari_ini" || j.err === "tidak_ditemukan" || j.err === "alasan_wajib") {
-          // Ditolak permanen oleh aturan server -> bersihkan dari antrean dan beri tahu staf
           VQ = VQ.filter(x => String(x.id) !== String(v.id));
           sv("mk2_vq", VQ);
           toast(j.err === "bukan_hari_ini" ? "Batal ditolak: bukan transaksi hari ini" : "Pembatalan tidak dapat diproses");
           load();
         } else {
           if (j.err === "terkunci" && m) toast("PIN terkunci 10 menit. Coba lagi nanti.");
+          gagalJaringan = true;
           break;
         }
       } catch (e) {
         if (m) toast("Belum ada sinyal. Pembatalan aman di HP");
+        gagalJaringan = true;
+        break;
+      }
+    }
+  }
+
+  // 3. Kirim antrean Tutup Kasir setelah Q dan VQ selesai agar nominal sistem di server akurat
+  if (!gagalJaringan && Q.length === 0 && VQ.length === 0) {
+    for (const c of CQ.slice()) {
+      try {
+        const j = await post({ action: "close_day", pin: PINV, c });
+        if (j.ok) {
+          CQ = CQ.filter(x => String(x.id) !== String(c.id));
+          sv("mk2_cq", CQ);
+          const saved = j.row || c;
+          const bucket = (CH[saved.ds] = CH[saved.ds] || []);
+          if (!bucket.some(x => String(x.id) === String(saved.id))) {
+            bucket.push(saved);
+          }
+          sv("mk2_ch", CH);
+        } else if (j.err === "pin") {
+          out();
+          break;
+        } else {
+          if (j.err === "terkunci" && m) toast("PIN terkunci 10 menit. Coba lagi nanti.");
+          break;
+        }
+      } catch (e) {
+        if (m) toast("Belum ada sinyal. Tutup kasir aman di HP");
         break;
       }
     }
@@ -603,11 +857,12 @@ async function sync(m) {
   busy = false;
   stat();
   if (!$("#riwayat").hidden) hist();
+  if (!$("#csheet").hidden) renderClose();
 }
 
 function stat() {
   const e = $("#st");
-  const pending = Q.length + VQ.length;
+  const pending = Q.length + VQ.length + CQ.length;
   e.className = "pill" + (pending ? " w" : "");
   e.textContent = !PINV ? "Belum masuk" : pending ? pending + " belum terkirim" : "Tersambung";
 }
